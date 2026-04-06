@@ -1,0 +1,13 @@
+spec_version: 1
+name: er-triage
+version: 0.2.0
+description: Realistic Emergency Room (ER) triage and resource allocation simulator. Patients arrive with varying severity and types (trauma, cardiac, etc.). Resources (beds, ICU, doctors) are limited. Patients worsen over time if not treated. Agent learns ethical, optimal prioritization to maximize survival while minimizing wait times and resource waste. Supports 3 difficulty levels.
+type: gym-like
+runtime: python
+app:
+  module: server.app:create_app
+  port: 8000
+tasks:
+  - simple-triage
+  - resource-constraint
+  - critical-overload

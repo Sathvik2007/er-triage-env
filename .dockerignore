@@ -1,0 +1,23 @@
+# Keep image build context small and deterministic
+.git
+.gitignore
+.DS_Store
+
+# Local environments/caches
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local editor/config files not needed in container
+.idea/
+.vscode/
+.cursor/
+
+# Environment secrets
+.env
+.env.*
+
