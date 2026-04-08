@@ -1,3 +1,13 @@
+---
+title: ER Triage RL
+emoji: 🏥
+colorFrom: blue
+colorTo: red
+sdk: docker
+app_file: inference.py
+pinned: false
+---
+
 # ER-Triage-Env
 
 **OpenEnv Hackathon Submission**
