@@ -6,7 +6,7 @@ type: gym-like
 runtime: python
 app:
   module: server.app:create_app
-  port: 8000
+  port: 7860
 tasks:
   - simple-triage
   - resource-constraint

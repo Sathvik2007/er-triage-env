@@ -84,4 +84,4 @@ docker run --rm -p 8000:8000 er-triage
 If deploying to Hugging Face Spaces, set:
 - `API_BASE_URL`
 - `MODEL_NAME`
-- `HF_TOKEN`
+- `API_KEY`

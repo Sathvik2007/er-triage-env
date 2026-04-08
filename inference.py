@@ -12,7 +12,7 @@ from models import TriageAction
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
-API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN", "")
+API_KEY = os.getenv("API_KEY", "")
 TASK_NAME = os.getenv("TASK_NAME", "simple-triage")
 BENCHMARK = "er-triage"
 MAX_STEPS = 70
@@ -21,7 +21,7 @@ MAX_TOKENS = 220
 ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:8000")
 
 if not API_KEY:
-    raise ValueError("API_KEY environment variable is required")
+    raise ValueError("API_KEY environment variable is required (injected by validator/runtime)")
 
 client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
