@@ -11,8 +11,8 @@ except Exception:
 from models import TriageAction
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.1-70b-versatile")
-HF_TOKEN = os.getenv("HF_TOKEN")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
+API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN", "")
 TASK_NAME = os.getenv("TASK_NAME", "simple-triage")
 BENCHMARK = "er-triage"
 MAX_STEPS = 70
@@ -20,10 +20,10 @@ TEMPERATURE = 0.15
 MAX_TOKENS = 220
 ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:8000")
 
-if not HF_TOKEN:
-    raise ValueError("HF_TOKEN environment variable is required")
+if not API_KEY:
+    raise ValueError("API_KEY environment variable is required")
 
-client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
 SYSTEM_PROMPT = textwrap.dedent("""
 You are an expert Emergency Room Triage AI.
@@ -40,10 +40,7 @@ Rules:
 
 
 def normalize_action(raw_action: dict) -> dict:
-    """Best-effort normalization for common LLM schema drift."""
     action = dict(raw_action)
-
-    # Common alias from generic planning prompts.
     raw_type = action.get("action_type")
     if raw_type is None and "action" in action:
         alias = str(action.get("action")).strip().lower()
@@ -51,22 +48,15 @@ def normalize_action(raw_action: dict) -> dict:
             raw_type = "assign"
         elif alias in {"wait", "idle", "noop"}:
             raw_type = "wait"
-
-    # Infer assign when patient/resource are present.
     if raw_type is None and action.get("patient_id") is not None and action.get("resource") is not None:
         raw_type = "assign"
-
-    # Normalize resource aliases.
     if isinstance(action.get("resource"), str):
         resource = action["resource"].strip().lower()
         resource_aliases = {"physician": "doctor", "doc": "doctor", "icu_bed": "icu"}
         action["resource"] = resource_aliases.get(resource, resource)
-
     action["action_type"] = raw_type or "wait"
-
     if action["action_type"] != "assign":
         return {"action_type": "wait"}
-
     return {
         "action_type": "assign",
         "patient_id": action.get("patient_id"),
@@ -99,11 +89,9 @@ async def main():
             for step in range(1, MAX_STEPS + 1):
                 if result.done:
                     break
-
                 obs_data = result.observation
                 obs_dict = obs_data.model_dump() if hasattr(obs_data, "model_dump") else obs_data
                 user_prompt = f"Current observation:\n{json.dumps(obs_dict, indent=2)}\nChoose next action."
-
                 try:
                     completion = client.chat.completions.create(
                         model=MODEL_NAME,
@@ -122,7 +110,6 @@ async def main():
                     action = TriageAction(action_type="wait")
                     action_str = '{"action_type":"wait"}'
                     print(f"[DEBUG] Model error: {e}", flush=True)
-
                 result = await env.step(action)
                 reward = result.reward or 0.0
                 rewards.append(reward)
@@ -130,7 +117,6 @@ async def main():
                 log_step(step, action_str, reward, result.done, error=None)
                 if result.done:
                     break
-
             score = sum(rewards) / max(len(rewards), 1)
             success = bool(score >= 0.45)
         finally:
