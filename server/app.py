@@ -12,12 +12,15 @@ def create_app() -> FastAPI:
         observation_cls=Observation,
     )
     server.register_routes(app)
+
+    @app.get("/")
+    def root():
+        return {"message": "ER Triage OpenEnv API", "status": "ok"}
+
     return app
 
-
 def main() -> None:
-    uvicorn.run("server.app:create_app", host="0.0.0.0", port=8000, factory=True)
-
+    uvicorn.run("server.app:create_app", host="0.0.0.0", port=7860, factory=True)
 
 if __name__ == "__main__":
     main()
