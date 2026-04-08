@@ -10,15 +10,21 @@ except Exception:
     from openenv_core import HTTPEnvClient
 from models import TriageAction
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
+API_BASE_URL = os.getenv("API_BASE_URL", "")
+MODEL_NAME = os.getenv("MODEL_NAME", "")
 API_KEY = os.getenv("API_KEY", "")
 TASK_NAME = os.getenv("TASK_NAME", "simple-triage")
 BENCHMARK = "er-triage"
 MAX_STEPS = 70
 TEMPERATURE = 0.15
 MAX_TOKENS = 220
-ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:8000")
+ENV_BASE_URL = os.environ["ENV_BASE_URL"]
+
+if not API_BASE_URL:
+    raise ValueError("API_BASE_URL environment variable is required (injected by validator/runtime)")
+
+if not MODEL_NAME:
+    raise ValueError("MODEL_NAME environment variable is required (injected by validator/runtime)")
 
 if not API_KEY:
     raise ValueError("API_KEY environment variable is required (injected by validator/runtime)")
@@ -92,24 +98,20 @@ async def main():
                 obs_data = result.observation
                 obs_dict = obs_data.model_dump() if hasattr(obs_data, "model_dump") else obs_data
                 user_prompt = f"Current observation:\n{json.dumps(obs_dict, indent=2)}\nChoose next action."
-                try:
-                    completion = client.chat.completions.create(
-                        model=MODEL_NAME,
-                        messages=[
-                            {"role": "system", "content": SYSTEM_PROMPT},
-                            {"role": "user", "content": user_prompt},
-                        ],
-                        temperature=TEMPERATURE,
-                        max_tokens=MAX_TOKENS,
-                    )
-                    text = (completion.choices[0].message.content or "").strip()
-                    action_dict = normalize_action(json.loads(text))
-                    action = TriageAction(**action_dict)
-                    action_str = json.dumps(action_dict)
-                except Exception as e:
-                    action = TriageAction(action_type="wait")
-                    action_str = '{"action_type":"wait"}'
-                    print(f"[DEBUG] Model error: {e}", flush=True)
+                print("Calling LLM...", flush=True)
+                completion = client.chat.completions.create(
+                    model=MODEL_NAME,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=TEMPERATURE,
+                    max_tokens=MAX_TOKENS,
+                )
+                text = (completion.choices[0].message.content or "").strip()
+                action_dict = normalize_action(json.loads(text))
+                action = TriageAction(**action_dict)
+                action_str = json.dumps(action_dict)
                 result = await env.step(action)
                 reward = result.reward or 0.0
                 rewards.append(reward)
