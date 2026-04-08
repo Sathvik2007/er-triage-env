@@ -18,7 +18,7 @@ BENCHMARK = "er-triage"
 MAX_STEPS = 70
 TEMPERATURE = 0.15
 MAX_TOKENS = 220
-ENV_BASE_URL = os.environ["ENV_BASE_URL"]
+ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:8000")
 
 if not API_BASE_URL:
     raise ValueError("API_BASE_URL environment variable is required (injected by validator/runtime)")
