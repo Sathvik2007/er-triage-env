@@ -11,8 +11,13 @@ from models import (
     Resources,
     EpisodeMetrics,
     TaskGrade,
+    State,
 )
 from server.scenarios import get_scenario
+
+
+def _clamp(x: float) -> float:
+    return max(0.01, min(0.99, round(x, 4)))
 
 
 class ERTriageEnvironment(Environment):
@@ -35,6 +40,9 @@ class ERTriageEnvironment(Environment):
         self._last_grade: Optional[TaskGrade] = None
 
     def reset(self, task: str = "simple-triage", **kwargs) -> Observation:
+        # handle task passed via difficulty= or other kwargs
+        if task == "simple-triage":
+            task = kwargs.get("difficulty", kwargs.get("task_name", task))
         self.episode_id = str(uuid.uuid4())
         self._task = task
         self.scenario = get_scenario(task)
@@ -56,10 +64,20 @@ class ERTriageEnvironment(Environment):
         obs.done = False
         return obs
 
-    def state(self) -> Observation:
-        return self._build_observation("Current environment state.")
+    def state(self) -> State:
+        return State(
+            episode_id=self.episode_id or "",
+            step_count=self.time_step,
+        )
 
     def step(self, action: TriageAction) -> Observation:
+        # guard against None scenario
+        if self.scenario is None:
+            self.scenario = get_scenario(self._task)
+            self.patients = {p["id"]: Patient(**p) for p in self.scenario["initial_patients"]}
+            self.resources = self.scenario["initial_resources"].copy()
+            self.resource_capacity = self.scenario["initial_resources"].copy()
+
         reward = 0.0
         message = "Action processed."
         step_deaths = 0
@@ -86,9 +104,12 @@ class ERTriageEnvironment(Environment):
         if done:
             self._last_grade = self.grade_task()
             message = f"{message} Episode score={self._last_grade.score:.3f}"
-        obs = self._build_observation(message)
 
-        obs.reward = round(reward, 2)
+        obs = self._build_observation(message)
+        final_reward = round(reward, 2)
+        if done:
+            final_reward = _clamp(self._last_grade.score)
+        obs.reward = final_reward
         obs.done = done
         return obs
 
@@ -149,6 +170,8 @@ class ERTriageEnvironment(Environment):
         return deaths_this_step
 
     def _add_new_patients(self):
+        if self.scenario is None:
+            return
         max_patients = self.scenario.get("max_patients", 999)
         if self.total_patients_seen >= max_patients:
             return
@@ -178,7 +201,7 @@ class ERTriageEnvironment(Environment):
         survival_rate = self.survived / max(self.total_patients_seen, 1)
         wait_score = max(0.0, 1.0 - min(avg_waiting_time / 60.0, 1.0))
         raw_score = (0.5 * survival_rate) + (0.3 * wait_score) + (0.2 * utilization)
-        final_score = max(0.01, min(0.99, round(raw_score, 4)))
+        final_score = _clamp(raw_score)
         return EpisodeMetrics(
             survived=self.survived,
             deaths=self.deaths,
@@ -194,7 +217,7 @@ class ERTriageEnvironment(Environment):
         metrics = self._episode_metrics()
         return TaskGrade(
             task=self._task,
-            score=max(0.01, min(0.99, metrics.final_score)),
+            score=_clamp(metrics.final_score),
             metrics={
                 "survival_rate": metrics.survival_rate,
                 "wait_score": metrics.wait_score,
