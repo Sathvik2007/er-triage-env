@@ -17,17 +17,18 @@ from server.scenarios import get_scenario
 
 
 def _clamp(x: float) -> float:
+    """Force any score strictly into (0.00001, 0.99999) with safe margin."""
     val = float(x)
+    EPS = 1e-5
+    val = max(EPS, min(1.0 - EPS, val))
+    # Round to 6 decimals for cleanliness
+    val = round(val, 6)
+    # Final safety net
     if val <= 0.0:
-        return 0.01
+        return 0.00001
     if val >= 1.0:
-        return 0.99
-    result = round(val, 4)
-    if result <= 0.0:
-        return 0.01
-    if result >= 1.0:
-        return 0.99
-    return result
+        return 0.99999
+    return val
 
 
 class ERTriageEnvironment(Environment):
@@ -112,7 +113,7 @@ class ERTriageEnvironment(Environment):
         done = self.time_step >= self.scenario.get("max_steps", 50) or len(self.patients) == 0
         if done:
             self._last_grade = self.grade_task()
-            message = f"{message} Episode score={self._last_grade.score:.3f}"
+            message = f"{message} Episode score={self._last_grade.score:.4f}"
 
         obs = self._build_observation(message)
         final_reward = round(reward, 2)
@@ -206,19 +207,19 @@ class ERTriageEnvironment(Environment):
         avg_waiting_time = self.total_wait_time_sum / max(self.total_wait_updates, 1)
         total_usage = sum(self.resource_usage.values())
         max_possible_usage = max(self.time_step, 1) * max(sum(self.resource_capacity.values()), 1)
-        utilization = total_usage / max_possible_usage
+        utilization = total_usage / max_possible_usage if max_possible_usage > 0 else 0.0
 
         survival_rate = self.survived / max(self.total_patients_seen, 1)
         wait_score = 1.0 - min(avg_waiting_time / 60.0, 1.0)
 
-        # Clamp all components strictly within (0, 1) before combining
+        # Clamp components
         survival_rate = max(0.01, min(0.99, survival_rate))
         wait_score = max(0.01, min(0.99, wait_score))
         utilization = max(0.01, min(0.99, utilization))
 
         raw_score = (0.5 * survival_rate) + (0.3 * wait_score) + (0.2 * utilization)
 
-        # Guard against floating point producing exact 0.0 or 1.0 before _clamp
+        # Extra protection against exact 0 or 1 due to floating point
         raw_score = max(1e-6, min(1.0 - 1e-6, raw_score))
 
         final_score = _clamp(raw_score)
@@ -236,9 +237,11 @@ class ERTriageEnvironment(Environment):
 
     def grade_task(self) -> TaskGrade:
         metrics = self._episode_metrics()
+        safe_score = _clamp(metrics.final_score)   # Final enforcement
+
         return TaskGrade(
             task=self._task,
-            score=_clamp(metrics.final_score),
+            score=safe_score,                       # ← This is what matters for Phase 2
             metrics={
                 "survival_rate": metrics.survival_rate,
                 "wait_score": metrics.wait_score,
