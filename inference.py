@@ -10,15 +10,15 @@ except Exception:
     from openenv_core import HTTPEnvClient
 from models import TriageAction
 
-API_BASE_URL = os.getenv("API_BASE_URL")
-API_KEY = os.getenv("API_KEY")
+API_BASE_URL = os.environ["API_BASE_URL"]
+API_KEY = os.environ["API_KEY"]
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
 TASK_NAME = os.getenv("TASK_NAME", "simple-triage")
 BENCHMARK = "er-triage"
 MAX_STEPS = 70
 TEMPERATURE = 0.15
 MAX_TOKENS = 220
-ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:8000")
+ENV_BASE_URL = os.getenv("ENV_BASE_URL", "https://sathvik2007-er-triage-env.hf.space")
 
 client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
@@ -73,36 +73,54 @@ def log_end(success: bool, steps: int, rewards: List[float]):
     print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
 
 async def main():
+    print(f"[DEBUG] API_BASE_URL={API_BASE_URL}", flush=True)
+    print(f"[DEBUG] API_KEY set={bool(API_KEY)}", flush=True)
+    print(f"[DEBUG] ENV_BASE_URL={ENV_BASE_URL}", flush=True)
+    print(f"[DEBUG] MODEL_NAME={MODEL_NAME}", flush=True)
+
     log_start(TASK_NAME, BENCHMARK, MODEL_NAME)
     rewards: List[float] = []
     steps_taken = 0
     success = False
     env = None
+
     try:
         env = HTTPEnvClient(base_url=ENV_BASE_URL)
         await env.connect()
-        result = await env.reset(task=TASK_NAME)
+        print("[DEBUG] Connected to env successfully", flush=True)
+
+        result = await env.reset(difficulty=TASK_NAME)
+        print(f"[DEBUG] Reset successful, done={result.done}", flush=True)
+
         try:
             for step in range(1, MAX_STEPS + 1):
                 if result.done:
                     break
+
                 obs_data = result.observation
                 obs_dict = obs_data.model_dump() if hasattr(obs_data, "model_dump") else obs_data
                 user_prompt = f"Current observation:\n{json.dumps(obs_dict, indent=2)}\nChoose next action."
-                print("Calling LLM...", flush=True)
-                completion = client.chat.completions.create(
-                    model=MODEL_NAME,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    temperature=TEMPERATURE,
-                    max_tokens=MAX_TOKENS,
-                )
-                text = (completion.choices[0].message.content or "").strip()
-                action_dict = normalize_action(json.loads(text))
-                action = TriageAction(**action_dict)
-                action_str = json.dumps(action_dict)
+
+                print(f"[LLM] Calling proxy at {API_BASE_URL} ...", flush=True)
+                try:
+                    completion = client.chat.completions.create(
+                        model=MODEL_NAME,
+                        messages=[
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        temperature=TEMPERATURE,
+                        max_tokens=MAX_TOKENS,
+                    )
+                    text = (completion.choices[0].message.content or "").strip()
+                    print(f"[LLM] Response: {text}", flush=True)
+                    action_dict = normalize_action(json.loads(text))
+                    action = TriageAction(**action_dict)
+                    action_str = json.dumps(action_dict)
+                except Exception as e:
+                    print(f"[FATAL] LLM call failed: {e}", flush=True)
+                    raise e
+
                 result = await env.step(action)
                 reward = result.reward or 0.0
                 rewards.append(reward)
@@ -110,13 +128,17 @@ async def main():
                 log_step(step, action_str, reward, result.done, error=None)
                 if result.done:
                     break
+
             score = sum(rewards) / max(len(rewards), 1)
             success = bool(score >= 0.45)
+
         finally:
             if env is not None:
                 await env.close()
+
     except Exception as exc:
-        print(f"[DEBUG] Inference failed before/at reset: {exc}", flush=True)
+        print(f"[FATAL] Inference failed: {exc}", flush=True)
+
     finally:
         log_end(success, steps_taken, rewards)
 
