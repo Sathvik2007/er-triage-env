@@ -178,7 +178,8 @@ class ERTriageEnvironment(Environment):
         utilization = min(total_usage / max_possible_usage, 1.0)
         survival_rate = self.survived / max(self.total_patients_seen, 1)
         wait_score = max(0.0, 1.0 - min(avg_waiting_time / 60.0, 1.0))
-        final_score = max(0.0, min(1.0, (0.5 * survival_rate) + (0.3 * wait_score) + (0.2 * utilization)))
+        raw_score = (0.5 * survival_rate) + (0.3 * wait_score) + (0.2 * utilization)
+        final_score = max(0.01, min(0.99, raw_score))
         return EpisodeMetrics(
             survived=self.survived,
             deaths=self.deaths,
@@ -194,7 +195,7 @@ class ERTriageEnvironment(Environment):
         metrics = self._episode_metrics()
         return TaskGrade(
             task=self._task,
-            score=metrics.final_score,
+            score=max(0.01, min(0.99, metrics.final_score)),
             metrics={
                 "survival_rate": metrics.survival_rate,
                 "wait_score": metrics.wait_score,
