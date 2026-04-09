@@ -28,7 +28,7 @@ class ERTriageEnvironment(Environment):
         self.patients: dict[int, Patient] = {}
         self.resources: dict[str, int] = {}
         self.resource_capacity: dict[str, int] = {}
-        self.resource_usage: dict[str, int] = {}
+        self.resource_usage: dict[str, int] = {"beds": 0, "icu": 0, "doctors": 0}
         self.time_step: int = 0
         self.survived: int = 0
         self.deaths: int = 0
@@ -40,7 +40,6 @@ class ERTriageEnvironment(Environment):
         self._last_grade: Optional[TaskGrade] = None
 
     def reset(self, task: str = "simple-triage", **kwargs) -> Observation:
-        # handle task passed via difficulty= or other kwargs
         if task == "simple-triage":
             task = kwargs.get("difficulty", kwargs.get("task_name", task))
         self.episode_id = str(uuid.uuid4())
@@ -71,12 +70,12 @@ class ERTriageEnvironment(Environment):
         )
 
     def step(self, action: TriageAction) -> Observation:
-        # guard against None scenario
         if self.scenario is None:
             self.scenario = get_scenario(self._task)
             self.patients = {p["id"]: Patient(**p) for p in self.scenario["initial_patients"]}
             self.resources = self.scenario["initial_resources"].copy()
             self.resource_capacity = self.scenario["initial_resources"].copy()
+            self.resource_usage = {"beds": 0, "icu": 0, "doctors": 0}
 
         reward = 0.0
         message = "Action processed."
@@ -139,7 +138,7 @@ class ERTriageEnvironment(Environment):
         patient.treated = True
         patient.severity = max(0.0, patient.severity - 0.70)
         self.resources[resource_key] -= 1
-        self.resource_usage[resource_key] += 1
+        self.resource_usage[resource_key] = self.resource_usage.get(resource_key, 0) + 1
         survivors = 0
 
         if patient.severity <= 0.3:
