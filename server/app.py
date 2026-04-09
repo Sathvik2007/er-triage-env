@@ -6,8 +6,11 @@ import uvicorn
 
 def create_app() -> FastAPI:
     app = FastAPI(title="ER Triage OpenEnv")
+    
+    env_instance = ERTriageEnvironment()  # CREATE INSTANCE ONCE
+    
     server = HTTPEnvServer(
-        env=ERTriageEnvironment,
+        env=env_instance,  # PASS INSTANCE not class
         action_cls=TriageAction,
         observation_cls=Observation,
     )
