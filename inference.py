@@ -13,7 +13,7 @@ from models import TriageAction
 API_BASE_URL = os.environ["API_BASE_URL"]
 API_KEY = os.environ["API_KEY"]
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
-TASK_NAME = os.getenv("TASK_NAME", "simple-triage")
+TASK_NAME = os.getenv("TASK_NAME", "")
 BENCHMARK = "er-triage"
 MAX_STEPS = 70
 TEMPERATURE = 0.15
@@ -72,13 +72,19 @@ def log_end(success: bool, steps: int, rewards: List[float]):
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
 
-async def main():
+def get_task_list() -> List[str]:
+    if TASK_NAME.strip():
+        return [TASK_NAME.strip()]
+    return ["simple-triage", "resource-constraint", "critical-overload"]
+
+
+async def run_task(task_name: str) -> None:
     print(f"[DEBUG] API_BASE_URL={API_BASE_URL}", flush=True)
     print(f"[DEBUG] API_KEY set={bool(API_KEY)}", flush=True)
     print(f"[DEBUG] ENV_BASE_URL={ENV_BASE_URL}", flush=True)
     print(f"[DEBUG] MODEL_NAME={MODEL_NAME}", flush=True)
 
-    log_start(TASK_NAME, BENCHMARK, MODEL_NAME)
+    log_start(task_name, BENCHMARK, MODEL_NAME)
     rewards: List[float] = []
     steps_taken = 0
     success = False
@@ -89,7 +95,7 @@ async def main():
         await env.connect()
         print("[DEBUG] Connected to env successfully", flush=True)
 
-        result = await env.reset(difficulty=TASK_NAME)
+        result = await env.reset(task=task_name)
         print(f"[DEBUG] Reset successful, done={result.done}", flush=True)
 
         try:
@@ -141,6 +147,11 @@ async def main():
 
     finally:
         log_end(success, steps_taken, rewards)
+
+
+async def main():
+    for task_name in get_task_list():
+        await run_task(task_name)
 
 if __name__ == "__main__":
     asyncio.run(main())
