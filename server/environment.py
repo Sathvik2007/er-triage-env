@@ -17,7 +17,17 @@ from server.scenarios import get_scenario
 
 
 def _clamp(x: float) -> float:
-    return max(0.01, min(0.99, round(x, 4)))
+    val = float(x)
+    if val <= 0.0:
+        return 0.01
+    if val >= 1.0:
+        return 0.99
+    result = round(val, 4)
+    if result <= 0.0:
+        return 0.01
+    if result >= 1.0:
+        return 0.99
+    return result
 
 
 class ERTriageEnvironment(Environment):
@@ -196,11 +206,23 @@ class ERTriageEnvironment(Environment):
         avg_waiting_time = self.total_wait_time_sum / max(self.total_wait_updates, 1)
         total_usage = sum(self.resource_usage.values())
         max_possible_usage = max(self.time_step, 1) * max(sum(self.resource_capacity.values()), 1)
-        utilization = min(total_usage / max_possible_usage, 1.0)
+        utilization = total_usage / max_possible_usage
+
         survival_rate = self.survived / max(self.total_patients_seen, 1)
-        wait_score = max(0.0, 1.0 - min(avg_waiting_time / 60.0, 1.0))
+        wait_score = 1.0 - min(avg_waiting_time / 60.0, 1.0)
+
+        # Clamp all components strictly within (0, 1) before combining
+        survival_rate = max(0.01, min(0.99, survival_rate))
+        wait_score = max(0.01, min(0.99, wait_score))
+        utilization = max(0.01, min(0.99, utilization))
+
         raw_score = (0.5 * survival_rate) + (0.3 * wait_score) + (0.2 * utilization)
+
+        # Guard against floating point producing exact 0.0 or 1.0 before _clamp
+        raw_score = max(1e-6, min(1.0 - 1e-6, raw_score))
+
         final_score = _clamp(raw_score)
+
         return EpisodeMetrics(
             survived=self.survived,
             deaths=self.deaths,
