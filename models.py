@@ -31,7 +31,6 @@ class EnvInfo(BaseModel):
     episode_id: str
     task: str
 
-
 class EpisodeMetrics(BaseModel):
     survived: int
     deaths: int
@@ -40,10 +39,9 @@ class EpisodeMetrics(BaseModel):
     utilization: float = Field(..., ge=0.0, le=1.0)
     survival_rate: float = Field(..., ge=0.0, le=1.0)
     wait_score: float = Field(..., ge=0.0, le=1.0)
-    final_score: float = Field(..., ge=0.0, le=1.0)
-
+    final_score: float = Field(..., gt=0.0, lt=1.0)
 
 class TaskGrade(BaseModel):
     task: str
-    score: float = Field(..., ge=0.0, le=1.0)
+    score: float = Field(..., gt=0.0, lt=1.0)
     metrics: Dict[str, float]

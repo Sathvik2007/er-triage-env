@@ -52,7 +52,7 @@ class ERTriageEnvironment(Environment):
         self._last_grade = None
 
         obs = self._build_observation("New episode started. Prioritize highest severity patients.")
-        obs.reward = 0.0
+        obs.reward = 0.01
         obs.done = False
         return obs
 
@@ -137,7 +137,6 @@ class ERTriageEnvironment(Environment):
                 p.waiting_time += 5
                 rates = {"trauma": 0.065, "cardiac": 0.052, "infection": 0.038, "general": 0.028}
                 p.severity += rates[p.patient_type] * (p.waiting_time / 25.0)
-
                 if p.severity > 1.0:
                     self.deaths += 1
                     deaths_this_step += 1
@@ -179,7 +178,7 @@ class ERTriageEnvironment(Environment):
         survival_rate = self.survived / max(self.total_patients_seen, 1)
         wait_score = max(0.0, 1.0 - min(avg_waiting_time / 60.0, 1.0))
         raw_score = (0.5 * survival_rate) + (0.3 * wait_score) + (0.2 * utilization)
-        final_score = max(0.01, min(0.99, raw_score))
+        final_score = max(0.01, min(0.99, round(raw_score, 4)))
         return EpisodeMetrics(
             survived=self.survived,
             deaths=self.deaths,
@@ -188,7 +187,7 @@ class ERTriageEnvironment(Environment):
             utilization=round(utilization, 4),
             survival_rate=round(survival_rate, 4),
             wait_score=round(wait_score, 4),
-            final_score=round(final_score, 4),
+            final_score=final_score,
         )
 
     def grade_task(self) -> TaskGrade:
