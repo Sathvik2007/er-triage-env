@@ -45,3 +45,7 @@ class TaskGrade(BaseModel):
     task: str
     score: float = Field(..., gt=0.0, lt=1.0)
     metrics: Dict[str, float]
+
+class State(BaseModel):
+    episode_id: str = ""
+    step_count: int = 0
