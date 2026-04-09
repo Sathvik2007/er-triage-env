@@ -10,24 +10,15 @@ except Exception:
     from openenv_core import HTTPEnvClient
 from models import TriageAction
 
-API_BASE_URL = os.getenv("API_BASE_URL", "")
-MODEL_NAME = os.getenv("MODEL_NAME", "")
-API_KEY = os.getenv("API_KEY", "")
+API_BASE_URL = os.getenv("API_BASE_URL")
+API_KEY = os.getenv("API_KEY")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
 TASK_NAME = os.getenv("TASK_NAME", "simple-triage")
 BENCHMARK = "er-triage"
 MAX_STEPS = 70
 TEMPERATURE = 0.15
 MAX_TOKENS = 220
 ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:8000")
-
-if not API_BASE_URL:
-    raise ValueError("API_BASE_URL environment variable is required (injected by validator/runtime)")
-
-if not MODEL_NAME:
-    raise ValueError("MODEL_NAME environment variable is required (injected by validator/runtime)")
-
-if not API_KEY:
-    raise ValueError("API_KEY environment variable is required (injected by validator/runtime)")
 
 client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
