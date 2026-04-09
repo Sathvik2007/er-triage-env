@@ -6,14 +6,17 @@ import uvicorn
 
 def create_app() -> FastAPI:
     app = FastAPI(title="ER Triage OpenEnv")
-    
-    env_instance = ERTriageEnvironment()  # CREATE INSTANCE ONCE
-    
+
+    # ✅ factory function
+    def env_factory():
+        return ERTriageEnvironment()
+
     server = HTTPEnvServer(
-        env=env_instance,  # PASS INSTANCE not class
+        env=env_factory,  # ✅ callable
         action_cls=TriageAction,
         observation_cls=Observation,
     )
+
     server.register_routes(app)
 
     @app.get("/")
@@ -22,8 +25,10 @@ def create_app() -> FastAPI:
 
     return app
 
+
 def main() -> None:
     uvicorn.run("server.app:create_app", host="0.0.0.0", port=7860, factory=True)
+
 
 if __name__ == "__main__":
     main()
