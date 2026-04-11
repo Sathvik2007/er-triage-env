@@ -79,11 +79,6 @@ def get_task_list() -> List[str]:
 
 
 async def run_task(task_name: str) -> None:
-    print(f"[DEBUG] API_BASE_URL={API_BASE_URL}", flush=True)
-    print(f"[DEBUG] API_KEY set={bool(API_KEY)}", flush=True)
-    print(f"[DEBUG] ENV_BASE_URL={ENV_BASE_URL}", flush=True)
-    print(f"[DEBUG] MODEL_NAME={MODEL_NAME}", flush=True)
-
     log_start(task_name, BENCHMARK, MODEL_NAME)
     rewards: List[float] = []
     steps_taken = 0
@@ -93,10 +88,10 @@ async def run_task(task_name: str) -> None:
     try:
         env = HTTPEnvClient(base_url=ENV_BASE_URL)
         await env.connect()
-        print("[DEBUG] Connected to env successfully", flush=True)
+        print(f"[DEBUG] Connected to env successfully for task: {task_name}", flush=True)
 
         result = await env.reset(task=task_name)
-        print(f"[DEBUG] Reset successful, done={result.done}", flush=True)
+        print(f"[DEBUG] Reset successful for {task_name}, done={result.done}", flush=True)
 
         try:
             for step in range(1, MAX_STEPS + 1):
@@ -135,23 +130,31 @@ async def run_task(task_name: str) -> None:
                 if result.done:
                     break
 
-            score = sum(rewards) / max(len(rewards), 1)
+            # Ensure score is strictly between 0 and 1 (not 0.0 or 1.0)
+            raw_score = sum(rewards) / max(len(rewards), 1)
+            epsilon = 1e-6
+            score = max(epsilon, min(1 - epsilon, raw_score))
             success = bool(score >= 0.45)
 
         finally:
             if env is not None:
                 await env.close()
+                print(f"[DEBUG] Closed env for task: {task_name}", flush=True)
 
     except Exception as exc:
-        print(f"[FATAL] Inference failed: {exc}", flush=True)
+        print(f"[FATAL] Inference failed for {task_name}: {exc}", flush=True)
 
     finally:
         log_end(success, steps_taken, rewards)
+        # Add delay between tasks to ensure proper cleanup
+        await asyncio.sleep(1)
 
 
 async def main():
+    print("[DEBUG] Starting inference for all tasks...", flush=True)
     for task_name in get_task_list():
         await run_task(task_name)
+    print("[DEBUG] All tasks completed", flush=True)
 
 if __name__ == "__main__":
     asyncio.run(main())
